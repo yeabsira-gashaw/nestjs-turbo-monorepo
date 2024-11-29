@@ -1,0 +1,61 @@
+name: TurboRepo CI Workflow
+
+on:
+  push:
+    branches:
+      - main # Trigger the action when pushing to the 'main' branch
+  pull_request:
+    branches:
+      - main # Trigger the action for pull requests targeting 'main' branch
+  workflow_dispatch: # Allow manual triggering of the action via the GitHub UI
+
+jobs:
+  install-and-build:
+    runs-on: ubuntu-latest # The GitHub Action runs on an Ubuntu environment
+
+    strategy:
+      matrix:
+        app: [auth, subscription] # Apps to run actions on
+
+    steps:
+      # Step 1: Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js (upgraded to v18.x)
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18" # Use Node.js v18 or higher, required for pnpm
+
+      # Step 3: Install pnpm globally
+      - name: Install pnpm
+        run: npm install -g pnpm # Installs pnpm globally
+
+      # Step 4: Cache pnpm dependencies
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            **/.pnpm
+            .turbo/cache
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      # Step 5: Install dependencies with pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile # Install using pnpm
+
+      # Step 6: Run Turbo build for ${{ matrix.app }}
+      - name: Run Turbo build for ${{ matrix.app }}
+        run: |
+          pnpm turbo run build --filter=${{ matrix.app }} --no-cache
+          # This will correctly run the build for either 'auth' or 'subscription'
+
+      # Step 7: Run tests for the specific app/package
+      - name: Run tests for ${{ matrix.app }}
+        run: |
+          cd apps/${{ matrix.app }}  # Navigate to the app directory
+          pnpm test  # Adjust this to your test command (e.g., jest, mocha, etc.)
